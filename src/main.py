@@ -78,6 +78,16 @@ class Event(db.Model):
             'techNotes': self.tech_notes
         }
 
+# Fonction utilitaire pour gérer les entiers
+def safe_int(value):
+    """Convertit une valeur en entier ou retourne None si vide/invalide"""
+    if value is None or value == '' or value == 'null':
+        return None
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return None
+
 # Route pour initialiser la base de données
 @app.route('/init-database')
 def init_database():
@@ -141,6 +151,9 @@ def handle_events():
             data = request.get_json()
             logger.info(f"Données reçues: {data}")
             
+            # Gestion sécurisée des champs entiers
+            tech_setup_time = safe_int(data.get('techSetupTime'))
+            
             event = Event(
                 title=data.get('title', ''),
                 date=data.get('date', ''),
@@ -156,7 +169,7 @@ def handle_events():
                 tech_equipment=data.get('techEquipment', ''),
                 tech_setup=data.get('techSetup', ''),
                 tech_playlist=data.get('techPlaylist', ''),
-                tech_setup_time=data.get('techSetupTime'),
+                tech_setup_time=tech_setup_time,  # Utilise la fonction safe_int
                 tech_notes=data.get('techNotes', '')
             )
             
@@ -191,7 +204,7 @@ def handle_event(event_id):
             event.tech_equipment = data.get('techEquipment', event.tech_equipment)
             event.tech_setup = data.get('techSetup', event.tech_setup)
             event.tech_playlist = data.get('techPlaylist', event.tech_playlist)
-            event.tech_setup_time = data.get('techSetupTime', event.tech_setup_time)
+            event.tech_setup_time = safe_int(data.get('techSetupTime', event.tech_setup_time))
             event.tech_notes = data.get('techNotes', event.tech_notes)
             
             db.session.commit()
