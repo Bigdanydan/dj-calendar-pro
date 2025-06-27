@@ -4,16 +4,34 @@ from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from sqlalchemy import text
+import logging
+
+# Configuration du logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__, static_folder='static')
 app.config['SECRET_KEY'] = 'dj-calendar-secret-key-2025'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///calendar.db'
+
+# Configuration PostgreSQL
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if DATABASE_URL:
+    # Render utilise postgres:// mais SQLAlchemy veut postgresql://
+    if DATABASE_URL.startswith('postgres://'):
+        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
+    logger.info("✅ Utilisation de PostgreSQL")
+else:
+    # Fallback vers SQLite pour le développement local
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///calendar.db'
+    logger.info("⚠️ Utilisation de SQLite (développement)")
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 CORS(app)
 db = SQLAlchemy(app)
 
-# Modèle Event
+# Modèle Event optimisé PostgreSQL
 class Event(db.Model):
     __tablename__ = 'events'
     
@@ -61,20 +79,25 @@ class Event(db.Model):
 @app.route('/init-database')
 def init_database():
     try:
-        print("🔧 Initialisation forcée de la base de données...")
-        db.drop_all()
+        logger.info("🔧 Initialisation de la base de données PostgreSQL...")
+        
+        # Créer les tables si elles n'existent pas
         db.create_all()
         
         # Vérifier que la table existe
-        result = db.session.execute(text("SELECT name FROM sqlite_master WHERE type='table';"))
+        result = db.session.execute(text("SELECT table_name FROM information_schema.tables WHERE table_schema='public';"))
         tables = [row[0] for row in result]
+        
+        logger.info(f"✅ Tables créées: {tables}")
         
         return jsonify({
             'success': True, 
-            'message': 'Base de données initialisée',
-            'tables': tables
+            'message': 'Base de données PostgreSQL initialisée',
+            'tables': tables,
+            'database_type': 'PostgreSQL'
         })
     except Exception as e:
+        logger.error(f"❌ Erreur initialisation: {e}")
         return jsonify({
             'success': False, 
             'error': str(e)
@@ -107,13 +130,13 @@ def handle_events():
             events = query.order_by(Event.date.asc()).all()
             return jsonify({'success': True, 'events': [event.to_dict() for event in events]})
         except Exception as e:
-            print(f"Erreur GET events: {e}")
+            logger.error(f"Erreur GET events: {e}")
             return jsonify({'success': False, 'error': str(e)})
     
     if request.method == 'POST':
         try:
             data = request.get_json()
-            print(f"Données reçues: {data}")
+            logger.info(f"Données reçues: {data}")
             
             event = Event(
                 title=data.get('title', ''),
@@ -136,11 +159,11 @@ def handle_events():
             
             db.session.add(event)
             db.session.commit()
-            print(f"Événement créé avec succès: {event.id}")
+            logger.info(f"✅ Événement créé: {event.id}")
             
             return jsonify({'success': True, 'event': event.to_dict()})
         except Exception as e:
-            print(f"Erreur POST events: {e}")
+            logger.error(f"❌ Erreur POST events: {e}")
             db.session.rollback()
             return jsonify({'success': False, 'error': str(e)})
 
@@ -171,7 +194,7 @@ def handle_event(event_id):
             db.session.commit()
             return jsonify({'success': True, 'event': event.to_dict()})
         except Exception as e:
-            print(f"Erreur PUT event: {e}")
+            logger.error(f"Erreur PUT event: {e}")
             db.session.rollback()
             return jsonify({'success': False, 'error': str(e)})
     
@@ -182,7 +205,7 @@ def handle_event(event_id):
             db.session.commit()
             return jsonify({'success': True, 'message': 'Event deleted'})
         except Exception as e:
-            print(f"Erreur DELETE event: {e}")
+            logger.error(f"Erreur DELETE event: {e}")
             db.session.rollback()
             return jsonify({'success': False, 'error': str(e)})
 
@@ -205,7 +228,7 @@ def get_stats():
             }
         })
     except Exception as e:
-        print(f"Erreur stats: {e}")
+        logger.error(f"Erreur stats: {e}")
         return jsonify({
             'success': True, 
             'stats': {
@@ -227,7 +250,7 @@ def get_analytics():
             }
         })
     except Exception as e:
-        print(f"Erreur analytics: {e}")
+        logger.error(f"Erreur analytics: {e}")
         return jsonify({
             'success': True, 
             'analytics': {
@@ -246,20 +269,25 @@ def serve(path):
 
 @app.route('/health')
 def health():
-    return {'status': 'healthy', 'message': 'DJ Calendar API is running'}
+    db_type = "PostgreSQL" if DATABASE_URL else "SQLite"
+    return {
+        'status': 'healthy', 
+        'message': f'DJ Calendar API is running with {db_type}',
+        'database': db_type
+    }
 
 if __name__ == '__main__':
-    print("🔧 Initialisation de la base de données...")
+    logger.info("🚀 Démarrage DJ Calendar PRO+ avec PostgreSQL")
+    
     with app.app_context():
         try:
-            db.drop_all()
-            print("✅ Tables supprimées")
-            
+            # Créer les tables automatiquement
             db.create_all()
-            print("✅ Tables créées avec le nom 'events'")
+            logger.info("✅ Tables PostgreSQL créées/vérifiées")
             
         except Exception as e:
-            print(f"❌ Erreur lors de la création des tables: {e}")
+            logger.error(f"❌ Erreur création tables: {e}")
     
-    print("🎵 DJ Calendar PRO+ démarré !")
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    port = int(os.environ.get('PORT', 5000))
+    logger.info(f"🎵 DJ Calendar PRO+ démarré sur le port {port}")
+    app.run(host='0.0.0.0', port=port)
