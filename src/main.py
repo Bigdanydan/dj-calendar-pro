@@ -187,7 +187,7 @@ def get_analytics():
             func.sum(Event.fee).label('revenue')
         ).filter(
             Event.status == 'confirmed',
-            Event.date >= one_year_ago
+            Event.date >= '2024-01-01'
         ).group_by(
             extract('year', Event.date),
             extract('month', Event.date)
