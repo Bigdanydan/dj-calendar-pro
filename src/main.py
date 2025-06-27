@@ -250,7 +250,8 @@ def health():
 
 if __name__ == '__main__':
     with app.app_context():
-        db.create_all()
+        db.drop_all()  # Supprime toutes les tables
+        db.create_all()  # Recrée toutes les tables avec la bonne structure
     print("🎵 DJ Calendar PRO+ démarré !")
     print("📱 Ouvre ton navigateur et va sur: http://localhost:5000" )
     app.run(host='0.0.0.0', port=5000, debug=True)
