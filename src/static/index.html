@@ -63,11 +63,12 @@
                     
                     const response = await fetch(`/api/events?${params}`);
                     const data = await response.json();
+                    console.log('Events loaded:', data);
                     if (data.success) {
                         setEvents(data.events);
                     }
                 } catch (error) {
-                    console.error('Erreur:', error);
+                    console.error('Erreur loadEvents:', error);
                 }
             };
 
@@ -103,22 +104,23 @@
 
             const createEvent = async (eventData) => {
                 try {
-                    console.log('Envoi des données:', eventData);
+                    console.log('Création événement:', eventData);
                     const response = await fetch('/api/events', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(eventData)
                     });
                     const data = await response.json();
-                    console.log('Réponse reçue:', data);
+                    console.log('Réponse création:', data);
                     
                     if (data.success) {
-                        await loadEvents();
-                        await loadStats();
-                        await loadAnalytics();
                         setShowModal(false);
                         setEditingEvent(null);
                         alert('✅ Événement créé avec succès !');
+                        // Recharger toutes les données
+                        await loadEvents();
+                        await loadStats();
+                        await loadAnalytics();
                     } else {
                         alert('❌ Erreur: ' + (data.error || 'Erreur inconnue'));
                     }
@@ -130,23 +132,28 @@
 
             const updateEvent = async (eventData) => {
                 try {
+                    console.log('Modification événement:', eventData);
                     const response = await fetch(`/api/events/${editingEvent.id}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(eventData)
                     });
                     const data = await response.json();
+                    console.log('Réponse modification:', data);
+                    
                     if (data.success) {
-                        loadEvents();
-                        loadStats();
-                        loadAnalytics();
                         setShowModal(false);
                         setEditingEvent(null);
                         alert('✅ Événement modifié avec succès !');
+                        await loadEvents();
+                        await loadStats();
+                        await loadAnalytics();
+                    } else {
+                        alert('❌ Erreur: ' + (data.error || 'Erreur inconnue'));
                     }
                 } catch (error) {
                     console.error('Erreur modification:', error);
-                    alert('❌ Erreur lors de la modification');
+                    alert('❌ Erreur lors de la modification: ' + error.message);
                 }
             };
 
@@ -158,15 +165,17 @@
                         });
                         const data = await response.json();
                         if (data.success) {
-                            loadEvents();
-                            loadStats();
-                            loadAnalytics();
                             setShowEventDetail(false);
                             alert('✅ Événement supprimé !');
+                            await loadEvents();
+                            await loadStats();
+                            await loadAnalytics();
+                        } else {
+                            alert('❌ Erreur: ' + (data.error || 'Erreur inconnue'));
                         }
                     } catch (error) {
                         console.error('Erreur suppression:', error);
-                        alert('❌ Erreur lors de la suppression');
+                        alert('❌ Erreur lors de la suppression: ' + error.message);
                     }
                 }
             };
@@ -448,7 +457,7 @@
                                 ))}
                                 {days.map((day, index) => {
                                     const dayEvents = events.filter(event => 
-                                        new Date(event.date).toDateString() === day.toDateString()
+                                        event.date === day.toISOString().split('T')[0]
                                     );
                                     const isCurrentMonth = viewMode === 'week' || day.getMonth() === currentDate.getMonth();
                                     const isToday = day.toDateString() === new Date().toDateString();
@@ -486,7 +495,10 @@
                     )}
 
                     {activeTab === 'analytics' && (
-                        <AnalyticsView analytics={analytics} />
+                        <div className="bg-slate-800 p-8 rounded-lg text-center">
+                            <h3 className="text-xl font-bold mb-4">📊 Analytics</h3>
+                            <p className="text-slate-400">Fonctionnalité en cours de développement</p>
+                        </div>
                     )}
 
                     <div className="grid grid-cols-4 gap-4">
@@ -523,179 +535,6 @@
                             onEdit={() => handleEditEvent(selectedEvent)}
                             onDelete={() => deleteEvent(selectedEvent.id)}
                         />
-                    )}
-                </div>
-            );
-        }
-
-        function AnalyticsView({ analytics }) {
-            const monthlyChartRef = useRef(null);
-            const typeChartRef = useRef(null);
-            const [monthlyChart, setMonthlyChart] = useState(null);
-            const [typeChart, setTypeChart] = useState(null);
-
-            useEffect(() => {
-                if (monthlyChartRef.current && analytics.monthly_revenue && analytics.monthly_revenue.length > 0) {
-                    if (monthlyChart) {
-                        monthlyChart.destroy();
-                    }
-                    
-                    const ctx = monthlyChartRef.current.getContext('2d');
-                    const newChart = new Chart(ctx, {
-                        type: 'bar',
-                        data: {
-                            labels: analytics.monthly_revenue.map(item => item.month),
-                            datasets: [{
-                                label: 'Revenus (€)',
-                                data: analytics.monthly_revenue.map(item => item.revenue),
-                                backgroundColor: 'rgba(124, 58, 237, 0.8)',
-                                borderColor: 'rgba(124, 58, 237, 1)',
-                                borderWidth: 1
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            plugins: {
-                                title: {
-                                    display: true,
-                                    text: '📈 Revenus par Mois',
-                                    color: 'white'
-                                },
-                                legend: {
-                                    labels: {
-                                        color: 'white'
-                                    }
-                                }
-                            },
-                            scales: {
-                                y: {
-                                    beginAtZero: true,
-                                    ticks: {
-                                        color: 'white'
-                                    },
-                                    grid: {
-                                        color: 'rgba(255, 255, 255, 0.1)'
-                                    }
-                                },
-                                x: {
-                                    ticks: {
-                                        color: 'white'
-                                    },
-                                    grid: {
-                                        color: 'rgba(255, 255, 255, 0.1)'
-                                    }
-                                }
-                            }
-                        }
-                    });
-                    setMonthlyChart(newChart);
-                }
-
-                if (typeChartRef.current && analytics.revenue_by_type && analytics.revenue_by_type.length > 0) {
-                    if (typeChart) {
-                        typeChart.destroy();
-                    }
-                    
-                    const ctx = typeChartRef.current.getContext('2d');
-                    const colors = ['#7c3aed', '#dc2626', '#ec4899', '#2563eb', '#ea580c'];
-                    const newChart = new Chart(ctx, {
-                        type: 'doughnut',
-                        data: {
-                            labels: analytics.revenue_by_type.map(item => {
-                                const typeNames = {
-                                    'club': '🏢 Club',
-                                    'festival': '🎪 Festival',
-                                    'wedding': '💒 Mariage',
-                                    'private': '🏠 Privé',
-                                    'corporate': '🏢 Corporate'
-                                };
-                                return typeNames[item.type] || item.type;
-                            }),
-                            datasets: [{
-                                data: analytics.revenue_by_type.map(item => item.revenue),
-                                backgroundColor: colors,
-                                borderColor: colors.map(color => color + '80'),
-                                borderWidth: 2
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            plugins: {
-                                title: {
-                                    display: true,
-                                    text: '🎯 Revenus par Type d\'Événement',
-                                    color: 'white'
-                                },
-                                legend: {
-                                    labels: {
-                                        color: 'white'
-                                    }
-                                }
-                            }
-                        }
-                    });
-                    setTypeChart(newChart);
-                }
-
-                return () => {
-                    if (monthlyChart) monthlyChart.destroy();
-                    if (typeChart) typeChart.destroy();
-                };
-            }, [analytics]);
-
-            return (
-                <div className="space-y-6">
-                    {analytics.monthly_revenue && analytics.monthly_revenue.length > 0 ? (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <div className="chart-container">
-                                <canvas ref={monthlyChartRef}></canvas>
-                            </div>
-                            <div className="chart-container">
-                                <canvas ref={typeChartRef}></canvas>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="bg-slate-800 p-8 rounded-lg text-center">
-                            <h3 className="text-xl font-bold mb-4">📊 Pas encore de données</h3>
-                            <p className="text-slate-400">Créez quelques événements pour voir vos analytics !</p>
-                        </div>
-                    )}
-                    
-                    {analytics.revenue_by_type && analytics.revenue_by_type.length > 0 && (
-                        <div className="bg-slate-800 p-4 rounded-lg">
-                            <h3 className="text-xl font-bold mb-4">📊 Détails par Type d'Événement</h3>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left">
-                                    <thead>
-                                        <tr className="border-b border-slate-600">
-                                            <th className="p-2">Type</th>
-                                            <th className="p-2">Nombre</th>
-                                            <th className="p-2">Revenus</th>
-                                            <th className="p-2">Moyenne</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {analytics.revenue_by_type.map((item, index) => {
-                                            const typeNames = {
-                                                'club': '🏢 Club',
-                                                'festival': '🎪 Festival',
-                                                'wedding': '💒 Mariage',
-                                                'private': '🏠 Privé',
-                                                'corporate': '🏢 Corporate'
-                                            };
-                                            return (
-                                                <tr key={index} className="border-b border-slate-700">
-                                                    <td className="p-2">{typeNames[item.type] || item.type}</td>
-                                                    <td className="p-2">{item.count}</td>
-                                                    <td className="p-2">{item.revenue.toFixed(2)} €</td>
-                                                    <td className="p-2">{(item.revenue / item.count).toFixed(2)} €</td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
                     )}
                 </div>
             );
@@ -811,6 +650,7 @@
 
             const handleSubmit = (e) => {
                 e.preventDefault();
+                console.log('Soumission formulaire:', formData);
                 if (formData.title && formData.date && formData.startTime && formData.venueName && formData.fee) {
                     onSave(formData);
                 } else {
