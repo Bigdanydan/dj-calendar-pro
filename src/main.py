@@ -13,14 +13,17 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__, static_folder='static')
 app.config['SECRET_KEY'] = 'dj-calendar-secret-key-2025'
 
-# Configuration PostgreSQL
+# Configuration PostgreSQL avec psycopg 3
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if DATABASE_URL:
-    # Render utilise postgres:// mais SQLAlchemy veut postgresql://
+    # Render utilise postgres:// mais SQLAlchemy avec psycopg 3 veut postgresql+psycopg://
     if DATABASE_URL.startswith('postgres://'):
-        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql+psycopg://', 1)
+    elif DATABASE_URL.startswith('postgresql://'):
+        DATABASE_URL = DATABASE_URL.replace('postgresql://', 'postgresql+psycopg://', 1)
+    
     app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
-    logger.info("✅ Utilisation de PostgreSQL")
+    logger.info("✅ Utilisation de PostgreSQL avec psycopg 3")
 else:
     # Fallback vers SQLite pour le développement local
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///calendar.db'
@@ -31,7 +34,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 CORS(app)
 db = SQLAlchemy(app)
 
-# Modèle Event optimisé PostgreSQL
+# Modèle Event optimisé PostgreSQL + Mobile
 class Event(db.Model):
     __tablename__ = 'events'
     
@@ -84,7 +87,7 @@ def init_database():
         # Créer les tables si elles n'existent pas
         db.create_all()
         
-        # Vérifier que la table existe
+        # Vérifier que la table existe (compatible psycopg 3)
         result = db.session.execute(text("SELECT table_name FROM information_schema.tables WHERE table_schema='public';"))
         tables = [row[0] for row in result]
         
@@ -92,9 +95,9 @@ def init_database():
         
         return jsonify({
             'success': True, 
-            'message': 'Base de données PostgreSQL initialisée',
+            'message': 'Base de données PostgreSQL initialisée avec psycopg 3',
             'tables': tables,
-            'database_type': 'PostgreSQL'
+            'database_type': 'PostgreSQL + psycopg 3'
         })
     except Exception as e:
         logger.error(f"❌ Erreur initialisation: {e}")
@@ -269,7 +272,7 @@ def serve(path):
 
 @app.route('/health')
 def health():
-    db_type = "PostgreSQL" if DATABASE_URL else "SQLite"
+    db_type = "PostgreSQL + psycopg 3" if DATABASE_URL else "SQLite"
     return {
         'status': 'healthy', 
         'message': f'DJ Calendar API is running with {db_type}',
@@ -277,7 +280,7 @@ def health():
     }
 
 if __name__ == '__main__':
-    logger.info("🚀 Démarrage DJ Calendar PRO+ avec PostgreSQL")
+    logger.info("🚀 Démarrage DJ Calendar PRO+ avec PostgreSQL + psycopg 3")
     
     with app.app_context():
         try:
