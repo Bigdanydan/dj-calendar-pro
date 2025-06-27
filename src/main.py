@@ -201,6 +201,25 @@ def health():
     return {'status': 'healthy'}
 
 if __name__ == '__main__':
+    print("🔧 Initialisation de la base de données...")
     with app.app_context():
-        db.create_all()
+        try:
+            # Supprimer toutes les tables existantes
+            db.drop_all()
+            print("✅ Tables supprimées")
+            
+            # Créer toutes les tables
+            db.create_all()
+            print("✅ Tables créées")
+            
+            # Vérifier que la table existe
+            result = db.engine.execute("SELECT name FROM sqlite_master WHERE type='table';")
+            tables = [row[0] for row in result]
+            print(f"📋 Tables disponibles: {tables}")
+            
+        except Exception as e:
+            print(f"❌ Erreur lors de la création des tables: {e}")
+    
+    print("🎵 DJ Calendar PRO+ démarré !")
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+
