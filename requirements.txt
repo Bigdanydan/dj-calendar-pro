@@ -1,5 +1,5 @@
 Flask==2.3.3
 Flask-CORS==4.0.0
 Flask-SQLAlchemy==3.0.5
-psycopg[binary]==3.1.13
+psycopg[binary]==3.2.9
 gunicorn==21.2.0
