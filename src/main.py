@@ -93,10 +93,22 @@ def create_event():
     
     event = Event()
     event.title = data.get('title')
-    event.date = datetime.strptime(data.get('date'), '%Y-%m-%d').date()
+    try:
+    # Parse de la date de manière plus robuste
+    date_str = data.get('date')
+    if 'T' in date_str:
+        date_str = date_str.split('T')[0]
+    event.date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    
+    # Parse des heures
     event.start_time = datetime.strptime(data.get('startTime'), '%H:%M').time()
     if data.get('endTime'):
         event.end_time = datetime.strptime(data.get('endTime'), '%H:%M').time()
+    else:
+        event.end_time = None
+except ValueError as e:
+    print(f"Erreur de parsing: {e}")
+    return jsonify({'success': False, 'error': 'Format de date invalide'})
     event.venue_name = data.get('venueName')
     event.venue_address = data.get('venueAddress')
     event.fee = float(data.get('fee', 0))
@@ -123,10 +135,22 @@ def update_event(event_id):
     data = request.get_json()
     
     event.title = data.get('title')
-    event.date = datetime.strptime(data.get('date'), '%Y-%m-%d').date()
+    try:
+    # Parse de la date de manière plus robuste
+    date_str = data.get('date')
+    if 'T' in date_str:
+        date_str = date_str.split('T')[0]
+    event.date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    
+    # Parse des heures
     event.start_time = datetime.strptime(data.get('startTime'), '%H:%M').time()
     if data.get('endTime'):
         event.end_time = datetime.strptime(data.get('endTime'), '%H:%M').time()
+    else:
+        event.end_time = None
+except ValueError as e:
+    print(f"Erreur de parsing: {e}")
+    return jsonify({'success': False, 'error': 'Format de date invalide'})
     else:
         event.end_time = None
     event.venue_name = data.get('venueName')
