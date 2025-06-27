@@ -57,34 +57,28 @@ class Event(db.Model):
         }
 
 # Routes
-@app.route('/api/events', methods=['GET', 'POST'])
-def handle_events():
-    if request.method == 'GET':
-        try:
-            search = request.args.get('search', '')
-            event_type = request.args.get('type', '')
-            status = request.args.get('status', '')
-            
-            query = Event.query
-            
-            if search:
-                search_term = f"%{search}%"
-                query = query.filter(
-                    (Event.title.like(search_term)) | 
-                    (Event.venue_name.like(search_term))
-                )
-            
-            if event_type:
-                query = query.filter(Event.event_type == event_type)
-            
-            if status:
-                query = query.filter(Event.status == status)
-            
-            events = query.order_by(Event.date.asc()).all()
-            return jsonify({'success': True, 'events': [event.to_dict() for event in events]})
-        except Exception as e:
-            print(f"Erreur GET events: {e}")
-            return jsonify({'success': False, 'error': str(e)})
+@app.route('/init-database')
+def init_database():
+    try:
+        print("🔧 Initialisation forcée de la base de données...")
+        db.drop_all()
+        db.create_all()
+        
+        # Vérifier que la table existe
+        from sqlalchemy import text
+        result = db.session.execute(text("SELECT name FROM sqlite_master WHERE type='table';"))
+        tables = [row[0] for row in result]
+        
+        return jsonify({
+            'success': True, 
+            'message': 'Base de données initialisée',
+            'tables': tables
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False, 
+            'error': str(e)
+        })
     
     elif request.method == 'POST':
         try:
