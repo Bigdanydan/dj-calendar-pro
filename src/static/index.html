@@ -374,13 +374,25 @@
                 return `event-item ${typeClass} ${statusClass}`;
             };
 
+            // CORRECTION DÉFINITIVE DES DATES
+            const formatDateForComparison = (date) => {
+                // Utilise les composants de date locaux sans conversion
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            };
+
+            const createLocalDate = (year, month, day) => {
+                // Crée une date locale sans risque de décalage UTC
+                return new Date(year, month, day);
+            };
+
             const getDaysInMonth = (date) => {
                 const year = date.getFullYear();
                 const month = date.getMonth();
-                
-                // Créer les dates en spécifiant explicitement l'heure pour éviter les décalages UTC
-                const firstDay = new Date(year, month, 1, 12, 0, 0); // Midi pour éviter les décalages
-                const lastDay = new Date(year, month + 1, 0, 12, 0, 0);
+                const firstDay = createLocalDate(year, month, 1);
+                const lastDay = createLocalDate(year, month + 1, 0);
                 const daysInMonth = lastDay.getDate();
                 const startingDayOfWeek = firstDay.getDay();
                 
@@ -388,20 +400,20 @@
                 
                 // Jours du mois précédent
                 for (let i = startingDayOfWeek - 1; i >= 0; i--) {
-                    const prevDate = new Date(year, month, -i, 12, 0, 0);
+                    const prevDate = createLocalDate(year, month, -i);
                     days.push({ date: prevDate, isCurrentMonth: false });
                 }
                 
                 // Jours du mois actuel
                 for (let day = 1; day <= daysInMonth; day++) {
-                    const currentDate = new Date(year, month, day, 12, 0, 0);
+                    const currentDate = createLocalDate(year, month, day);
                     days.push({ date: currentDate, isCurrentMonth: true });
                 }
                 
                 // Jours du mois suivant pour compléter la grille
                 const remainingDays = 42 - days.length;
                 for (let day = 1; day <= remainingDays; day++) {
-                    const nextDate = new Date(year, month + 1, day, 12, 0, 0);
+                    const nextDate = createLocalDate(year, month + 1, day);
                     days.push({ date: nextDate, isCurrentMonth: false });
                 }
                 
@@ -409,18 +421,25 @@
             };
 
             const getEventsForDate = (date) => {
-                // Créer une date locale sans conversion UTC
-                const year = date.getFullYear();
-                const month = String(date.getMonth() + 1).padStart(2, '0');
-                const day = String(date.getDate()).padStart(2, '0');
-                const dateStr = `${year}-${month}-${day}`;
+                const dateStr = formatDateForComparison(date);
                 return events.filter(event => event.date === dateStr);
+            };
+
+            const isToday = (date) => {
+                const today = new Date();
+                return formatDateForComparison(date) === formatDateForComparison(today);
             };
 
             const navigateMonth = (direction) => {
                 const newDate = new Date(currentDate);
                 newDate.setMonth(newDate.getMonth() + direction);
                 setCurrentDate(newDate);
+            };
+
+            const resetFilters = () => {
+                setSearchTerm('');
+                setFilterType('');
+                setFilterStatus('');
             };
 
             const days = getDaysInMonth(currentDate);
@@ -447,42 +466,48 @@
                         </button>
                     </div>
 
-                    {/* Filtres mobiles */}
-                    {isMobile && (
-                        <div className="mb-4 space-y-2">
+                    {/* Filtres */}
+                    <div className="mb-6 bg-slate-800 p-4 rounded-lg">
+                        <div className={`${isMobile ? 'space-y-3' : 'flex gap-4 items-center'}`}>
                             <input 
                                 type="text" 
-                                placeholder="Rechercher..."
-                                className="w-full p-3 bg-slate-700 rounded-lg text-white form-input"
+                                placeholder="Rechercher événements..."
+                                className={`bg-slate-700 rounded text-white ${isMobile ? 'w-full form-input' : 'flex-1 p-2'}`}
                                 value={searchTerm} 
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
-                            <div className="flex gap-2">
-                                <select 
-                                    className="flex-1 p-3 bg-slate-700 rounded-lg text-white form-input"
-                                    value={filterType} 
-                                    onChange={(e) => setFilterType(e.target.value)}
+                            <select 
+                                className={`bg-slate-700 rounded text-white ${isMobile ? 'w-full form-input' : 'p-2'}`}
+                                value={filterType} 
+                                onChange={(e) => setFilterType(e.target.value)}
+                            >
+                                <option value="">Tous types</option>
+                                <option value="club">🎧 Club</option>
+                                <option value="festival">🎪 Festival</option>
+                                <option value="wedding">💒 Mariage</option>
+                                <option value="private">🏠 Privé</option>
+                                <option value="corporate">🏢 Corporate</option>
+                            </select>
+                            <select 
+                                className={`bg-slate-700 rounded text-white ${isMobile ? 'w-full form-input' : 'p-2'}`}
+                                value={filterStatus} 
+                                onChange={(e) => setFilterStatus(e.target.value)}
+                            >
+                                <option value="">Tous statuts</option>
+                                <option value="confirmed">✅ Confirmé</option>
+                                <option value="pending">⏳ En attente</option>
+                                <option value="cancelled">❌ Annulé</option>
+                            </select>
+                            {(searchTerm || filterType || filterStatus) && (
+                                <button 
+                                    onClick={resetFilters}
+                                    className="bg-red-600 hover:bg-red-700 px-3 py-2 rounded text-white btn-touch"
                                 >
-                                    <option value="">Tous types</option>
-                                    <option value="club">🎧 Club</option>
-                                    <option value="festival">🎪 Festival</option>
-                                    <option value="wedding">💒 Mariage</option>
-                                    <option value="private">🏠 Privé</option>
-                                    <option value="corporate">🏢 Corporate</option>
-                                </select>
-                                <select 
-                                    className="flex-1 p-3 bg-slate-700 rounded-lg text-white form-input"
-                                    value={filterStatus} 
-                                    onChange={(e) => setFilterStatus(e.target.value)}
-                                >
-                                    <option value="">Tous statuts</option>
-                                    <option value="confirmed">✅ Confirmé</option>
-                                    <option value="pending">⏳ En attente</option>
-                                    <option value="cancelled">❌ Annulé</option>
-                                </select>
-                            </div>
+                                    🗑️ Reset
+                                </button>
+                            )}
                         </div>
-                    )}
+                    </div>
 
                     {/* Navigation du calendrier */}
                     <div className="bg-slate-800 rounded-lg p-4 mb-6">
@@ -519,20 +544,17 @@
                         <div className="grid grid-cols-7 gap-1">
                             {days.map((day, index) => {
                                 const dayEvents = getEventsForDate(day.date);
-                                const today = new Date();
-                                const isToday = day.date.getFullYear() === today.getFullYear() && 
-                                                day.date.getMonth() === today.getMonth() && 
-                                                day.date.getDate() === today.getDate();
+                                const todayCheck = isToday(day.date);
                                 
                                 return (
                                     <div 
                                         key={index} 
                                         className={`calendar-day p-1 ${
                                             day.isCurrentMonth ? 'bg-slate-700' : 'bg-slate-800 opacity-50'
-                                        } ${isToday ? 'ring-2 ring-purple-500' : ''}`}
+                                        } ${todayCheck ? 'ring-2 ring-purple-500' : ''}`}
                                     >
                                         <div className={`calendar-day-number font-medium mb-1 ${
-                                            isToday ? 'text-purple-400' : 'text-white'
+                                            todayCheck ? 'text-purple-400' : 'text-white'
                                         }`}>
                                             {day.date.getDate()}
                                         </div>
