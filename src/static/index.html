@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>DJ Calendar PRO+ - Gestion de Planning</title>
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -10,13 +10,34 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { background: #0f172a; color: white; font-family: 'Inter', sans-serif; }
-        .calendar-day { min-height: 100px; border: 1px solid #334155; }
-        .week-day { min-height: 120px; border: 1px solid #334155; }
+        body { 
+            background: #0f172a; 
+            color: white; 
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
         
+        /* Calendrier responsive */
+        .calendar-day { 
+            min-height: 80px; 
+            border: 1px solid #334155;
+        }
+        .week-day { 
+            min-height: 100px; 
+            border: 1px solid #334155;
+        }
+        
+        /* Mobile: calendrier plus compact */
+        @media (max-width: 768px ) {
+            .calendar-day { min-height: 60px; }
+            .week-day { min-height: 80px; }
+        }
+        
+        /* Événements responsive */
         .event-confirmed { opacity: 1; }
         .event-pending { opacity: 0.8; border: 2px dashed #fbbf24; }
-        .event-cancelled { opacity: 0.6; filter: grayscale(50% ); }
+        .event-cancelled { opacity: 0.6; filter: grayscale(50%); }
         
         .event-club { background: linear-gradient(135deg, #7c3aed, #a855f7); }
         .event-festival { background: linear-gradient(135deg, #dc2626, #ef4444); }
@@ -24,35 +45,153 @@
         .event-private { background: linear-gradient(135deg, #2563eb, #3b82f6); }
         .event-corporate { background: linear-gradient(135deg, #ea580c, #f97316); }
         
-        .modal-overlay { background: rgba(0,0,0,0.8); }
-        .event-item:hover { transform: scale(1.05); transition: all 0.2s; cursor: pointer; }
-        .view-button.active { background: #7c3aed; }
-        .view-button { background: #475569; }
-        .tab-button.active { background: #7c3aed; color: white; }
-        .tab-button { background: #374151; color: #9ca3af; }
-        .chart-container { background: #1e293b; border-radius: 0.5rem; padding: 1rem; }
+        .event-item { 
+            cursor: pointer; 
+            transition: all 0.2s;
+            border-radius: 4px;
+            margin: 1px;
+            padding: 2px 4px;
+            font-size: 10px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        /* Mobile: événements plus gros */
+        @media (max-width: 768px) {
+            .event-item { 
+                font-size: 11px;
+                padding: 3px 6px;
+                margin: 2px 1px;
+            }
+        }
+        
+        .event-item:hover { 
+            transform: scale(1.02); 
+            z-index: 10;
+            position: relative;
+        }
+        
+        /* Modal responsive */
+        .modal-overlay { 
+            background: rgba(0,0,0,0.9);
+            backdrop-filter: blur(4px);
+        }
+        
+        /* Mobile: modal plein écran */
+        @media (max-width: 768px) {
+            .modal-content {
+                width: 100vw !important;
+                height: 100vh !important;
+                max-width: none !important;
+                max-height: none !important;
+                border-radius: 0 !important;
+                margin: 0 !important;
+            }
+        }
+        
+        /* Boutons tactiles */
+        .btn-touch {
+            min-height: 44px;
+            min-width: 44px;
+            touch-action: manipulation;
+        }
+        
+        /* Navigation mobile */
+        @media (max-width: 768px) {
+            .mobile-nav {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                background: #1e293b;
+                border-top: 1px solid #334155;
+                z-index: 50;
+                padding: 8px;
+            }
+            
+            .main-content {
+                padding-bottom: 80px;
+            }
+        }
+        
+        /* Graphiques responsive */
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+        
+        @media (max-width: 768px) {
+            .chart-container {
+                height: 250px;
+            }
+        }
+        
+        /* Formulaire mobile */
+        @media (max-width: 768px) {
+            .form-input {
+                font-size: 16px; /* Évite le zoom sur iOS */
+            }
+        }
+        
+        /* Swipe indicators */
+        .swipe-indicator {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255,255,255,0.1);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .swipe-indicator:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        
+        @media (max-width: 768px) {
+            .swipe-indicator {
+                width: 35px;
+                height: 35px;
+            }
+        }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+        const { useState, useEffect } = React;
 
         function App() {
             const [events, setEvents] = useState([]);
             const [currentDate, setCurrentDate] = useState(new Date());
             const [showModal, setShowModal] = useState(false);
-            const [showEventDetail, setShowEventDetail] = useState(false);
             const [editingEvent, setEditingEvent] = useState(null);
-            const [selectedEvent, setSelectedEvent] = useState(null);
-            const [stats, setStats] = useState({});
-            const [analytics, setAnalytics] = useState({});
             const [viewMode, setViewMode] = useState('month');
             const [activeTab, setActiveTab] = useState('calendar');
+            const [stats, setStats] = useState({});
+            const [analytics, setAnalytics] = useState({});
             const [searchTerm, setSearchTerm] = useState('');
             const [filterType, setFilterType] = useState('');
             const [filterStatus, setFilterStatus] = useState('');
+            const [isMobile, setIsMobile] = useState(false);
+
+            // Détection mobile
+            useEffect(() => {
+                const checkMobile = () => {
+                    setIsMobile(window.innerWidth <= 768);
+                };
+                checkMobile();
+                window.addEventListener('resize', checkMobile);
+                return () => window.removeEventListener('resize', checkMobile);
+            }, []);
 
             const loadEvents = async () => {
                 try {
@@ -63,12 +202,11 @@
                     
                     const response = await fetch(`/api/events?${params}`);
                     const data = await response.json();
-                    console.log('Events loaded:', data);
                     if (data.success) {
                         setEvents(data.events);
                     }
                 } catch (error) {
-                    console.error('Erreur loadEvents:', error);
+                    console.error('Erreur chargement événements:', error);
                 }
             };
 
@@ -80,7 +218,7 @@
                         setStats(data.stats);
                     }
                 } catch (error) {
-                    console.error('Erreur stats:', error);
+                    console.error('Erreur chargement stats:', error);
                 }
             };
 
@@ -92,7 +230,7 @@
                         setAnalytics(data.analytics);
                     }
                 } catch (error) {
-                    console.error('Erreur analytics:', error);
+                    console.error('Erreur chargement analytics:', error);
                 }
             };
 
@@ -104,23 +242,24 @@
 
             const createEvent = async (eventData) => {
                 try {
-                    console.log('Création événement:', eventData);
+                    console.log('Envoi des données:', eventData);
                     const response = await fetch('/api/events', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(eventData)
                     });
                     const data = await response.json();
-                    console.log('Réponse création:', data);
+                    console.log('Réponse reçue:', data);
                     
                     if (data.success) {
-                        setShowModal(false);
-                        setEditingEvent(null);
-                        alert('✅ Événement créé avec succès !');
-                        // Recharger toutes les données
                         await loadEvents();
                         await loadStats();
                         await loadAnalytics();
+                        setShowModal(false);
+                        setEditingEvent(null);
+                        if (isMobile) {
+                            alert('✅ Événement créé !');
+                        }
                     } else {
                         alert('❌ Erreur: ' + (data.error || 'Erreur inconnue'));
                     }
@@ -130,65 +269,149 @@
                 }
             };
 
-            const updateEvent = async (eventData) => {
+            const updateEvent = async (eventId, eventData) => {
                 try {
-                    console.log('Modification événement:', eventData);
-                    const response = await fetch(`/api/events/${editingEvent.id}`, {
+                    const response = await fetch(`/api/events/${eventId}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(eventData)
                     });
                     const data = await response.json();
-                    console.log('Réponse modification:', data);
                     
                     if (data.success) {
-                        setShowModal(false);
-                        setEditingEvent(null);
-                        alert('✅ Événement modifié avec succès !');
                         await loadEvents();
                         await loadStats();
                         await loadAnalytics();
+                        setShowModal(false);
+                        setEditingEvent(null);
+                        if (isMobile) {
+                            alert('✅ Événement modifié !');
+                        }
                     } else {
                         alert('❌ Erreur: ' + (data.error || 'Erreur inconnue'));
                     }
                 } catch (error) {
                     console.error('Erreur modification:', error);
-                    alert('❌ Erreur lors de la modification: ' + error.message);
+                    alert('❌ Erreur lors de la modification');
                 }
             };
 
             const deleteEvent = async (eventId) => {
-                if (confirm('🗑️ Êtes-vous sûr de vouloir supprimer cet événement ?')) {
-                    try {
-                        const response = await fetch(`/api/events/${eventId}`, {
-                            method: 'DELETE'
-                        });
-                        const data = await response.json();
-                        if (data.success) {
-                            setShowEventDetail(false);
+                const confirmDelete = isMobile ? 
+                    confirm('Supprimer cet événement ?') :
+                    window.confirm('Êtes-vous sûr de vouloir supprimer cet événement ?');
+                    
+                if (!confirmDelete) return;
+
+                try {
+                    const response = await fetch(`/api/events/${eventId}`, {
+                        method: 'DELETE'
+                    });
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        await loadEvents();
+                        await loadStats();
+                        await loadAnalytics();
+                        setShowModal(false);
+                        setEditingEvent(null);
+                        if (isMobile) {
                             alert('✅ Événement supprimé !');
-                            await loadEvents();
-                            await loadStats();
-                            await loadAnalytics();
-                        } else {
-                            alert('❌ Erreur: ' + (data.error || 'Erreur inconnue'));
                         }
-                    } catch (error) {
-                        console.error('Erreur suppression:', error);
-                        alert('❌ Erreur lors de la suppression: ' + error.message);
                     }
+                } catch (error) {
+                    console.error('Erreur suppression:', error);
+                    alert('❌ Erreur lors de la suppression');
                 }
             };
 
-            const handleEventClick = (event) => {
-                setSelectedEvent(event);
-                setShowEventDetail(true);
+            const getEventIcon = (type) => {
+                const icons = {
+                    club: '🎧',
+                    festival: '🎪',
+                    wedding: '💒',
+                    private: '🏠',
+                    corporate: '🏢'
+                };
+                return icons[type] || '🎵';
             };
 
-            const handleEditEvent = (event) => {
-                setEditingEvent(event);
-                setShowEventDetail(false);
-                setShowModal(true);
+            const getEventClass = (event) => {
+                const typeClass = `event-${event.type}`;
+                const statusClass = `event-${event.status}`;
+                return `event-item ${typeClass} ${statusClass}`;
+            };
+
+            const formatDate = (dateStr) => {
+                const date = new Date(dateStr + 'T00:00:00');
+                return date.toLocaleDateString('fr-FR', { 
+                    day: '2-digit', 
+                    month: '2-digit' 
+                });
+            };
+
+            const getDaysInMonth = (date) => {
+                const year = date.getFullYear();
+                const month = date.getMonth();
+                const firstDay = new Date(year, month, 1);
+                const lastDay = new Date(year, month + 1, 0);
+                const daysInMonth = lastDay.getDate();
+                const startingDayOfWeek = firstDay.getDay();
+                
+                const days = [];
+                
+                // Jours du mois précédent
+                for (let i = startingDayOfWeek - 1; i >= 0; i--) {
+                    const prevDate = new Date(year, month, -i);
+                    days.push({ date: prevDate, isCurrentMonth: false });
+                }
+                
+                // Jours du mois actuel
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const currentDate = new Date(year, month, day);
+                    days.push({ date: currentDate, isCurrentMonth: true });
+                }
+                
+                // Jours du mois suivant pour compléter la grille
+                const remainingDays = 42 - days.length;
+                for (let day = 1; day <= remainingDays; day++) {
+                    const nextDate = new Date(year, month + 1, day);
+                    days.push({ date: nextDate, isCurrentMonth: false });
+                }
+                
+                return days;
+            };
+
+            const getWeekDays = (date) => {
+                const startOfWeek = new Date(date);
+                const day = startOfWeek.getDay();
+                const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1);
+                startOfWeek.setDate(diff);
+                
+                const days = [];
+                for (let i = 0; i < 7; i++) {
+                    const currentDate = new Date(startOfWeek);
+                    currentDate.setDate(startOfWeek.getDate() + i);
+                    days.push(currentDate);
+                }
+                return days;
+            };
+
+            const getEventsForDate = (date) => {
+                const dateStr = date.toISOString().split('T')[0];
+                return events.filter(event => event.date === dateStr);
+            };
+
+            const navigateMonth = (direction) => {
+                const newDate = new Date(currentDate);
+                newDate.setMonth(newDate.getMonth() + direction);
+                setCurrentDate(newDate);
+            };
+
+            const navigateWeek = (direction) => {
+                const newDate = new Date(currentDate);
+                newDate.setDate(newDate.getDate() + (direction * 7));
+                setCurrentDate(newDate);
             };
 
             const resetFilters = () => {
@@ -197,170 +420,277 @@
                 setFilterStatus('');
             };
 
-            const generateMonthCalendar = () => {
-                const year = currentDate.getFullYear();
-                const month = currentDate.getMonth();
-                const firstDay = new Date(year, month, 1);
-                const startDate = new Date(firstDay);
-                startDate.setDate(startDate.getDate() - firstDay.getDay());
-
-                const days = [];
-                for (let i = 0; i < 42; i++) {
-                    const date = new Date(startDate);
-                    date.setDate(startDate.getDate() + i);
-                    days.push(date);
-                }
-                return days;
-            };
-
-            const generateWeekCalendar = () => {
-                const startOfWeek = new Date(currentDate);
-                const day = startOfWeek.getDay();
-                const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1);
-                startOfWeek.setDate(diff);
-
-                const days = [];
-                for (let i = 0; i < 7; i++) {
-                    const date = new Date(startOfWeek);
-                    date.setDate(startOfWeek.getDate() + i);
-                    days.push(date);
-                }
-                return days;
-            };
-
-            const navigatePrevious = () => {
+            const renderCalendarView = () => {
                 if (viewMode === 'month') {
-                    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
+                    const days = getDaysInMonth(currentDate);
+                    const monthName = currentDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+                    
+                    return (
+                        <div className="bg-slate-800 rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-4 relative">
+                                <button 
+                                    onClick={() => navigateMonth(-1)}
+                                    className="swipe-indicator left-0 btn-touch"
+                                >
+                                    ←
+                                </button>
+                                <h2 className="text-xl font-bold capitalize text-center flex-1">
+                                    {monthName}
+                                </h2>
+                                <button 
+                                    onClick={() => navigateMonth(1)}
+                                    className="swipe-indicator right-0 btn-touch"
+                                >
+                                    →
+                                </button>
+                            </div>
+                            
+                            <div className="grid grid-cols-7 gap-1 mb-2">
+                                {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map(day => (
+                                    <div key={day} className="text-center font-semibold text-slate-400 p-2 text-sm">
+                                        {isMobile ? day.charAt(0) : day}
+                                    </div>
+                                ))}
+                            </div>
+                            
+                            <div className="grid grid-cols-7 gap-1">
+                                {days.map((day, index) => {
+                                    const dayEvents = getEventsForDate(day.date);
+                                    const isToday = day.date.toDateString() === new Date().toDateString();
+                                    
+                                    return (
+                                        <div 
+                                            key={index} 
+                                            className={`calendar-day p-1 ${
+                                                day.isCurrentMonth ? 'bg-slate-700' : 'bg-slate-800 opacity-50'
+                                            } ${isToday ? 'ring-2 ring-purple-500' : ''}`}
+                                        >
+                                            <div className={`text-sm font-medium mb-1 ${
+                                                isToday ? 'text-purple-400' : 'text-white'
+                                            }`}>
+                                                {day.date.getDate()}
+                                            </div>
+                                            <div className="space-y-1">
+                                                {dayEvents.slice(0, isMobile ? 2 : 3).map(event => (
+                                                    <div
+                                                        key={event.id}
+                                                        className={getEventClass(event)}
+                                                        onClick={() => {
+                                                            setEditingEvent(event);
+                                                            setShowModal(true);
+                                                        }}
+                                                        title={`${event.title} - ${event.venueName} (${event.startTime})`}
+                                                    >
+                                                        <span className="mr-1">{getEventIcon(event.type)}</span>
+                                                        {isMobile ? event.title.substring(0, 8) + '...' : event.title}
+                                                    </div>
+                                                ))}
+                                                {dayEvents.length > (isMobile ? 2 : 3) && (
+                                                    <div className="text-xs text-slate-400">
+                                                        +{dayEvents.length - (isMobile ? 2 : 3)} autres
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    );
                 } else {
-                    const newDate = new Date(currentDate);
-                    newDate.setDate(currentDate.getDate() - 7);
-                    setCurrentDate(newDate);
+                    const weekDays = getWeekDays(currentDate);
+                    const weekStart = weekDays[0].toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+                    const weekEnd = weekDays[6].toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+                    
+                    return (
+                        <div className="bg-slate-800 rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-4 relative">
+                                <button 
+                                    onClick={() => navigateWeek(-1)}
+                                    className="swipe-indicator left-0 btn-touch"
+                                >
+                                    ←
+                                </button>
+                                <h2 className="text-xl font-bold text-center flex-1">
+                                    {weekStart} - {weekEnd}
+                                </h2>
+                                <button 
+                                    onClick={() => navigateWeek(1)}
+                                    className="swipe-indicator right-0 btn-touch"
+                                >
+                                    →
+                                </button>
+                            </div>
+                            
+                            <div className="grid grid-cols-7 gap-1">
+                                {weekDays.map((day, index) => {
+                                    const dayEvents = getEventsForDate(day);
+                                    const isToday = day.toDateString() === new Date().toDateString();
+                                    const dayName = day.toLocaleDateString('fr-FR', { weekday: 'short' });
+                                    
+                                    return (
+                                        <div key={index} className={`week-day p-2 bg-slate-700 ${
+                                            isToday ? 'ring-2 ring-purple-500' : ''
+                                        }`}>
+                                            <div className={`text-center mb-2 ${
+                                                isToday ? 'text-purple-400' : 'text-white'
+                                            }`}>
+                                                <div className="font-semibold text-sm">
+                                                    {isMobile ? dayName.charAt(0) : dayName}
+                                                </div>
+                                                <div className="text-lg font-bold">
+                                                    {day.getDate()}
+                                                </div>
+                                            </div>
+                                            <div className="space-y-1">
+                                                {dayEvents.map(event => (
+                                                    <div
+                                                        key={event.id}
+                                                        className={getEventClass(event)}
+                                                        onClick={() => {
+                                                            setEditingEvent(event);
+                                                            setShowModal(true);
+                                                        }}
+                                                        title={`${event.title} - ${event.venueName} (${event.startTime})`}
+                                                    >
+                                                        <div className="font-medium">
+                                                            <span className="mr-1">{getEventIcon(event.type)}</span>
+                                                            {isMobile ? event.title.substring(0, 10) + '...' : event.title}
+                                                        </div>
+                                                        <div className="text-xs opacity-90">
+                                                            {event.startTime} - {event.venueName}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    );
                 }
             };
 
-            const navigateNext = () => {
-                if (viewMode === 'month') {
-                    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
-                } else {
-                    const newDate = new Date(currentDate);
-                    newDate.setDate(currentDate.getDate() + 7);
-                    setCurrentDate(newDate);
-                }
-            };
-
-            const getEventClasses = (event) => {
-                let typeClass = '';
-                switch(event.type) {
-                    case 'club': typeClass = 'event-club'; break;
-                    case 'festival': typeClass = 'event-festival'; break;
-                    case 'wedding': typeClass = 'event-wedding'; break;
-                    case 'private': typeClass = 'event-private'; break;
-                    case 'corporate': typeClass = 'event-corporate'; break;
-                    default: typeClass = 'event-club';
-                }
-
-                let statusClass = '';
-                switch(event.status) {
-                    case 'confirmed': statusClass = 'event-confirmed'; break;
-                    case 'pending': statusClass = 'event-pending'; break;
-                    case 'cancelled': statusClass = 'event-cancelled'; break;
-                    default: statusClass = 'event-confirmed';
-                }
-
-                return `${typeClass} ${statusClass}`;
-            };
-
-            const getEventIcon = (type) => {
-                switch(type) {
-                    case 'club': return '🏢';
-                    case 'festival': return '🎪';
-                    case 'wedding': return '💒';
-                    case 'private': return '🏠';
-                    case 'corporate': return '🏢';
-                    default: return '🎵';
-                }
-            };
-
-            const days = viewMode === 'month' ? generateMonthCalendar() : generateWeekCalendar();
-            const monthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-                              'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
-            const dayNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
-
-            const getTitle = () => {
-                if (viewMode === 'month') {
-                    return `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
-                } else {
-                    const weekDays = generateWeekCalendar();
-                    const start = weekDays[0];
-                    const end = weekDays[6];
-                    if (start.getMonth() === end.getMonth()) {
-                        return `${start.getDate()}-${end.getDate()} ${monthNames[start.getMonth()]} ${start.getFullYear()}`;
-                    } else {
-                        return `${start.getDate()} ${monthNames[start.getMonth()]} - ${end.getDate()} ${monthNames[end.getMonth()]} ${start.getFullYear()}`;
-                    }
-                }
+            const renderAnalytics = () => {
+                return (
+                    <div className="space-y-6">
+                        <div className="bg-slate-800 rounded-lg p-6">
+                            <h3 className="text-xl font-bold mb-4">📊 Analytics</h3>
+                            <div className="text-center text-slate-400">
+                                <p>Graphiques disponibles prochainement</p>
+                                <p className="text-sm mt-2">En cours de développement...</p>
+                            </div>
+                        </div>
+                    </div>
+                );
             };
 
             return (
-                <div className="min-h-screen bg-slate-900 p-4">
-                    <div className="flex justify-between items-center mb-6">
-                        <div>
-                            <h1 className="text-3xl font-bold text-white">🎵 DJ Calendar PRO+</h1>
-                            <p className="text-slate-400">Gestion de planning professionnel avec analytics et notes DJ</p>
+                <div className={`min-h-screen bg-slate-900 ${isMobile ? 'main-content' : ''}`}>
+                    {/* Header */}
+                    <div className="bg-slate-800 border-b border-slate-700 p-4">
+                        <div className="flex items-center justify-between">
+                            <h1 className="text-2xl font-bold text-purple-400">
+                                🎵 DJ Calendar {isMobile ? '' : 'PRO+'}
+                            </h1>
+                            {!isMobile && (
+                                <button
+                                    onClick={() => setShowModal(true)}
+                                    className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg font-medium btn-touch"
+                                >
+                                    ➕ Nouvel événement
+                                </button>
+                            )}
                         </div>
-                        <button 
-                            onClick={() => {setShowModal(true); setEditingEvent(null);}}
-                            className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg text-white font-semibold transition-all hover:scale-105"
-                        >
-                            ➕ Nouvel événement
-                        </button>
+                        
+                        {/* Navigation tabs - Desktop */}
+                        {!isMobile && (
+                            <div className="flex space-x-4 mt-4">
+                                <button
+                                    onClick={() => setActiveTab('calendar')}
+                                    className={`px-4 py-2 rounded-lg font-medium btn-touch ${
+                                        activeTab === 'calendar' ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-300'
+                                    }`}
+                                >
+                                    📅 Calendrier
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('analytics')}
+                                    className={`px-4 py-2 rounded-lg font-medium btn-touch ${
+                                        activeTab === 'analytics' ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-300'
+                                    }`}
+                                >
+                                    📊 Analytics
+                                </button>
+                            </div>
+                        )}
                     </div>
 
-                    <div className="flex gap-2 mb-6">
-                        <button 
-                            onClick={() => setActiveTab('calendar')}
-                            className={`tab-button px-4 py-2 rounded transition-all ${activeTab === 'calendar' ? 'active' : ''}`}
-                        >
-                            📅 Calendrier
-                        </button>
-                        <button 
-                            onClick={() => setActiveTab('analytics')}
-                            className={`tab-button px-4 py-2 rounded transition-all ${activeTab === 'analytics' ? 'active' : ''}`}
-                        >
-                            📊 Analytics
-                        </button>
-                    </div>
+                    {/* Main Content */}
+                    <div className="p-4">
+                        {activeTab === 'calendar' && (
+                            <>
+                                {/* Statistiques */}
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                    <div className="bg-slate-800 rounded-lg p-4 text-center">
+                                        <div className="text-2xl font-bold text-purple-400">
+                                            {stats.total_events || 0}
+                                        </div>
+                                        <div className="text-sm text-slate-400">
+                                            {isMobile ? 'Total' : 'Événements'}
+                                        </div>
+                                    </div>
+                                    <div className="bg-slate-800 rounded-lg p-4 text-center">
+                                        <div className="text-2xl font-bold text-green-400">
+                                            {stats.confirmed_events || 0}
+                                        </div>
+                                        <div className="text-sm text-slate-400">
+                                            {isMobile ? 'Confirmés' : 'Confirmés'}
+                                        </div>
+                                    </div>
+                                    <div className="bg-slate-800 rounded-lg p-4 text-center">
+                                        <div className="text-2xl font-bold text-yellow-400">
+                                            {stats.pending_events || 0}
+                                        </div>
+                                        <div className="text-sm text-slate-400">
+                                            {isMobile ? 'Attente' : 'En attente'}
+                                        </div>
+                                    </div>
+                                    <div className="bg-slate-800 rounded-lg p-4 text-center">
+                                        <div className="text-2xl font-bold text-blue-400">
+                                            {stats.total_revenue || 0}€
+                                        </div>
+                                        <div className="text-sm text-slate-400">
+                                            {isMobile ? 'Revenus' : 'Revenus'}
+                                        </div>
+                                    </div>
+                                </div>
 
-                    {activeTab === 'calendar' && (
-                        <>
-                            <div className="bg-slate-800 p-4 rounded-lg mb-6">
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                    <div>
+                                {/* Recherche et filtres */}
+                                <div className="bg-slate-800 rounded-lg p-4 mb-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                         <input
                                             type="text"
-                                            placeholder="🔍 Rechercher un événement ou lieu..."
-                                            className="w-full p-2 bg-slate-700 rounded text-white"
+                                            placeholder="🔍 Rechercher..."
+                                            className="form-input bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white btn-touch"
                                             value={searchTerm}
                                             onChange={(e) => setSearchTerm(e.target.value)}
                                         />
-                                    </div>
-                                    <div>
                                         <select
-                                            className="w-full p-2 bg-slate-700 rounded text-white"
+                                            className="form-input bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white btn-touch"
                                             value={filterType}
                                             onChange={(e) => setFilterType(e.target.value)}
                                         >
                                             <option value="">Tous les types</option>
-                                            <option value="club">🏢 Club</option>
+                                            <option value="club">🎧 Club</option>
                                             <option value="festival">🎪 Festival</option>
                                             <option value="wedding">💒 Mariage</option>
                                             <option value="private">🏠 Privé</option>
                                             <option value="corporate">🏢 Corporate</option>
                                         </select>
-                                    </div>
-                                    <div>
                                         <select
-                                            className="w-full p-2 bg-slate-700 rounded text-white"
+                                            className="form-input bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white btn-touch"
                                             value={filterStatus}
                                             onChange={(e) => setFilterStatus(e.target.value)}
                                         >
@@ -369,439 +699,341 @@
                                             <option value="pending">⏳ En attente</option>
                                             <option value="cancelled">❌ Annulé</option>
                                         </select>
-                                    </div>
-                                    <div>
                                         <button
                                             onClick={resetFilters}
-                                            className="w-full bg-slate-600 hover:bg-slate-500 p-2 rounded text-white transition-all"
+                                            className="bg-slate-600 hover:bg-slate-500 px-4 py-2 rounded-lg text-white btn-touch"
                                         >
-                                            🔄 Réinitialiser
+                                            🔄 Reset
                                         </button>
                                     </div>
                                 </div>
-                            </div>
 
-                            <div className="flex gap-2 mb-4">
-                                <button 
-                                    onClick={() => setViewMode('month')}
-                                    className={`view-button px-4 py-2 rounded transition-all ${viewMode === 'month' ? 'active' : ''}`}
-                                >
-                                    📅 Vue Mois
-                                </button>
-                                <button 
-                                    onClick={() => setViewMode('week')}
-                                    className={`view-button px-4 py-2 rounded transition-all ${viewMode === 'week' ? 'active' : ''}`}
-                                >
-                                    📆 Vue Semaine
-                                </button>
-                            </div>
-
-                            <div className="flex justify-between items-center mb-4">
-                                <button 
-                                    onClick={navigatePrevious}
-                                    className="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded transition-all"
-                                >
-                                    ← {viewMode === 'month' ? 'Mois précédent' : 'Semaine précédente'}
-                                </button>
-                                <h2 className="text-xl font-semibold">
-                                    {getTitle()}
-                                </h2>
-                                <button 
-                                    onClick={navigateNext}
-                                    className="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded transition-all"
-                                >
-                                    {viewMode === 'month' ? 'Mois suivant' : 'Semaine suivante'} →
-                                </button>
-                            </div>
-
-                            <div className="mb-4">
-                                <div className="flex gap-4 mb-2 text-sm flex-wrap">
-                                    <span className="font-semibold">Types :</span>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-4 h-4 rounded event-club"></div>
-                                        <span>🏢 Club</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-4 h-4 rounded event-festival"></div>
-                                        <span>🎪 Festival</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-4 h-4 rounded event-wedding"></div>
-                                        <span>💒 Mariage</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-4 h-4 rounded event-private"></div>
-                                        <span>🏠 Privé</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-4 h-4 rounded event-corporate"></div>
-                                        <span>🏢 Corporate</span>
-                                    </div>
-                                </div>
-                                <div className="flex gap-4 text-sm">
-                                    <span className="font-semibold">Statuts :</span>
-                                    <span>🟢 Trait plein = Confirmé</span>
-                                    <span>🟡 Trait pointillé = En attente</span>
-                                    <span>⚫ Grisé = Annulé</span>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-7 gap-1 mb-6">
-                                {(viewMode === 'month' ? 
-                                    ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'] : 
-                                    dayNames
-                                ).map(day => (
-                                    <div key={day} className="p-2 text-center font-semibold text-slate-300">
-                                        {day}
-                                    </div>
-                                ))}
-                                {days.map((day, index) => {
-                                    const dayEvents = events.filter(event => 
-                                        event.date === day.toISOString().split('T')[0]
-                                    );
-                                    const isCurrentMonth = viewMode === 'week' || day.getMonth() === currentDate.getMonth();
-                                    const isToday = day.toDateString() === new Date().toDateString();
-                                    
-                                    return (
-                                        <div 
-                                            key={index}
-                                            className={`${viewMode === 'month' ? 'calendar-day' : 'week-day'} p-2 
-                                                       ${isCurrentMonth ? 'bg-slate-800' : 'bg-slate-900'} 
-                                                       ${isToday ? 'ring-2 ring-purple-500' : ''}`}
+                                {/* Contrôles de vue */}
+                                <div className="flex items-center justify-between mb-6">
+                                    <div className="flex space-x-2">
+                                        <button
+                                            onClick={() => setViewMode('month')}
+                                            className={`px-4 py-2 rounded-lg font-medium btn-touch ${
+                                                viewMode === 'month' ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-300'
+                                            }`}
                                         >
-                                            <div className={`text-sm font-semibold ${isCurrentMonth ? 'text-white' : 'text-slate-500'}`}>
-                                                {day.getDate()}
-                                                {viewMode === 'week' && (
-                                                    <div className="text-xs text-slate-400">
-                                                        {dayNames[day.getDay() === 0 ? 6 : day.getDay() - 1]}
-                                                    </div>
-                                                )}
+                                            {isMobile ? '📅' : '📅 Mois'}
+                                        </button>
+                                        <button
+                                            onClick={() => setViewMode('week')}
+                                            className={`px-4 py-2 rounded-lg font-medium btn-touch ${
+                                                viewMode === 'week' ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-300'
+                                            }`}
+                                        >
+                                            {isMobile ? '📋' : '📋 Semaine'}
+                                        </button>
+                                    </div>
+                                    
+                                    {/* Légendes */}
+                                    {!isMobile && (
+                                        <div className="flex space-x-4 text-sm">
+                                            <div className="flex items-center space-x-2">
+                                                <div className="w-3 h-3 bg-green-500 rounded"></div>
+                                                <span>Confirmé</span>
                                             </div>
-                                            {dayEvents.map(event => (
-                                                <div 
-                                                    key={event.id} 
-                                                    className={`event-item text-xs p-1 rounded mt-1 text-white ${getEventClasses(event)}`}
-                                                    onClick={() => handleEventClick(event)}
-                                                    title={`${event.title} - ${event.venueName} - ${event.fee}€`}
-                                                >
-                                                    {getEventIcon(event.type)} {event.title}
-                                                </div>
-                                            ))}
+                                            <div className="flex items-center space-x-2">
+                                                <div className="w-3 h-3 bg-yellow-500 rounded border-2 border-dashed border-yellow-300"></div>
+                                                <span>En attente</span>
+                                            </div>
+                                            <div className="flex items-center space-x-2">
+                                                <div className="w-3 h-3 bg-gray-500 rounded"></div>
+                                                <span>Annulé</span>
+                                            </div>
                                         </div>
-                                    );
-                                })}
+                                    )}
+                                </div>
+
+                                {/* Calendrier */}
+                                {renderCalendarView()}
+                            </>
+                        )}
+
+                        {activeTab === 'analytics' && renderAnalytics()}
+                    </div>
+
+                    {/* Navigation mobile */}
+                    {isMobile && (
+                        <div className="mobile-nav">
+                            <div className="flex justify-around items-center">
+                                <button
+                                    onClick={() => setActiveTab('calendar')}
+                                    className={`flex flex-col items-center p-2 rounded-lg btn-touch ${
+                                        activeTab === 'calendar' ? 'text-purple-400' : 'text-slate-400'
+                                    }`}
+                                >
+                                    <span className="text-xl">📅</span>
+                                    <span className="text-xs">Calendrier</span>
+                                </button>
+                                <button
+                                    onClick={() => setShowModal(true)}
+                                    className="bg-purple-600 hover:bg-purple-700 p-3 rounded-full btn-touch"
+                                >
+                                    <span className="text-xl">➕</span>
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('analytics')}
+                                    className={`flex flex-col items-center p-2 rounded-lg btn-touch ${
+                                        activeTab === 'analytics' ? 'text-purple-400' : 'text-slate-400'
+                                    }`}
+                                >
+                                    <span className="text-xl">📊</span>
+                                    <span className="text-xs">Analytics</span>
+                                </button>
                             </div>
-                        </>
-                    )}
-
-                    {activeTab === 'analytics' && (
-                        <div className="bg-slate-800 p-8 rounded-lg text-center">
-                            <h3 className="text-xl font-bold mb-4">📊 Analytics</h3>
-                            <p className="text-slate-400">Fonctionnalité en cours de développement</p>
                         </div>
                     )}
 
-                    <div className="grid grid-cols-4 gap-4">
-                        <div className="bg-slate-800 p-4 rounded-lg">
-                            <h3 className="text-slate-400">Total événements</h3>
-                            <p className="text-2xl font-bold text-white">{stats.total_events || 0}</p>
-                        </div>
-                        <div className="bg-slate-800 p-4 rounded-lg">
-                            <h3 className="text-slate-400">Confirmés</h3>
-                            <p className="text-2xl font-bold text-green-400">{stats.confirmed_events || 0}</p>
-                        </div>
-                        <div className="bg-slate-800 p-4 rounded-lg">
-                            <h3 className="text-slate-400">En attente</h3>
-                            <p className="text-2xl font-bold text-yellow-400">{stats.pending_events || 0}</p>
-                        </div>
-                        <div className="bg-slate-800 p-4 rounded-lg">
-                            <h3 className="text-slate-400">Revenus totaux</h3>
-                            <p className="text-2xl font-bold text-purple-400">{stats.total_revenue || 0} €</p>
-                        </div>
-                    </div>
-
+                    {/* Modal */}
                     {showModal && (
-                        <EventModal 
-                            onClose={() => {setShowModal(false); setEditingEvent(null);}} 
-                            onSave={editingEvent ? updateEvent : createEvent}
-                            editingEvent={editingEvent}
-                        />
-                    )}
-                    
-                    {showEventDetail && selectedEvent && (
-                        <EventDetailModal 
-                            event={selectedEvent}
-                            onClose={() => setShowEventDetail(false)}
-                            onEdit={() => handleEditEvent(selectedEvent)}
-                            onDelete={() => deleteEvent(selectedEvent.id)}
+                        <EventModal
+                            event={editingEvent}
+                            onSave={editingEvent ? 
+                                (data) => updateEvent(editingEvent.id, data) : 
+                                createEvent
+                            }
+                            onDelete={editingEvent ? () => deleteEvent(editingEvent.id) : null}
+                            onClose={() => {
+                                setShowModal(false);
+                                setEditingEvent(null);
+                            }}
+                            isMobile={isMobile}
                         />
                     )}
                 </div>
             );
         }
 
-        function EventDetailModal({ event, onClose, onEdit, onDelete }) {
-            const getStatusColor = (status) => {
-                switch(status) {
-                    case 'confirmed': return 'text-green-400';
-                    case 'pending': return 'text-yellow-400';
-                    case 'cancelled': return 'text-red-400';
-                    default: return 'text-green-400';
-                }
-            };
-
-            const getStatusText = (status) => {
-                switch(status) {
-                    case 'confirmed': return '✅ Confirmé';
-                    case 'pending': return '⏳ En attente';
-                    case 'cancelled': return '❌ Annulé';
-                    default: return '✅ Confirmé';
-                }
-            };
-
-            const getTypeText = (type) => {
-                switch(type) {
-                    case 'club': return '🏢 Club';
-                    case 'festival': return '🎪 Festival';
-                    case 'wedding': return '💒 Mariage';
-                    case 'private': return '🏠 Privé';
-                    case 'corporate': return '🏢 Corporate';
-                    default: return '🎵 Autre';
-                }
-            };
-
-            return (
-                <div className="modal-overlay fixed inset-0 flex items-center justify-center z-50">
-                    <div className="bg-slate-800 p-6 rounded-lg w-96 max-w-full max-h-96 overflow-y-auto">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-xl font-bold">🎵 Détails de l'événement</h3>
-                            <button onClick={onClose} className="text-slate-400 hover:text-white text-xl">×</button>
-                        </div>
-                        
-                        <div className="space-y-3 text-sm">
-                            <div><strong>Nom :</strong> {event.title}</div>
-                            <div><strong>Date :</strong> {new Date(event.date).toLocaleDateString('fr-FR')}</div>
-                            <div><strong>Horaires :</strong> {event.startTime} {event.endTime && `- ${event.endTime}`}</div>
-                            <div><strong>Lieu :</strong> {event.venueName}</div>
-                            {event.venueAddress && <div><strong>Adresse :</strong> {event.venueAddress}</div>}
-                            <div><strong>Cachet :</strong> {event.fee} {event.currency}</div>
-                            <div><strong>Type :</strong> {getTypeText(event.type)}</div>
-                            <div className={getStatusColor(event.status)}><strong>Statut :</strong> {getStatusText(event.status)}</div>
-                            {event.notes && <div><strong>Notes :</strong> {event.notes}</div>}
-                            
-                            {(event.techEquipment || event.techSetup || event.techPlaylist || event.techSetupTime || event.techNotes) && (
-                                <>
-                                    <hr className="border-slate-600 my-4" />
-                                    <div className="text-purple-400 font-semibold">🎧 Notes Techniques DJ</div>
-                                    {event.techEquipment && <div><strong>🎛️ Matériel :</strong> {event.techEquipment}</div>}
-                                    {event.techSetup && <div><strong>🔧 Setup :</strong> {event.techSetup}</div>}
-                                    {event.techPlaylist && <div><strong>🎵 Playlist/Genre :</strong> {event.techPlaylist}</div>}
-                                    {event.techSetupTime && <div><strong>⏱️ Temps setup :</strong> {event.techSetupTime} min</div>}
-                                    {event.techNotes && <div><strong>📝 Notes tech :</strong> {event.techNotes}</div>}
-                                </>
-                            )}
-                        </div>
-
-                        <div className="flex gap-2 mt-6">
-                            <button 
-                                onClick={onEdit}
-                                className="flex-1 bg-blue-600 hover:bg-blue-700 py-2 rounded text-white"
-                            >
-                                ✏️ Modifier
-                            </button>
-                            <button 
-                                onClick={onDelete}
-                                className="flex-1 bg-red-600 hover:bg-red-700 py-2 rounded text-white"
-                            >
-                                🗑️ Supprimer
-                            </button>
-                            <button 
-                                onClick={onClose}
-                                className="flex-1 bg-slate-600 hover:bg-slate-500 py-2 rounded text-white"
-                            >
-                                Fermer
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        function EventModal({ onClose, onSave, editingEvent }) {
+        function EventModal({ event, onSave, onDelete, onClose, isMobile }) {
             const [activeTab, setActiveTab] = useState('basic');
             const [formData, setFormData] = useState({
-                title: editingEvent?.title || '',
-                date: editingEvent?.date || '',
-                startTime: editingEvent?.startTime || '',
-                endTime: editingEvent?.endTime || '',
-                venueName: editingEvent?.venueName || '',
-                venueAddress: editingEvent?.venueAddress || '',
-                fee: editingEvent?.fee || '',
-                currency: editingEvent?.currency || 'EUR',
-                status: editingEvent?.status || 'confirmed',
-                type: editingEvent?.type || 'club',
-                notes: editingEvent?.notes || '',
-                techEquipment: editingEvent?.techEquipment || '',
-                techSetup: editingEvent?.techSetup || '',
-                techPlaylist: editingEvent?.techPlaylist || '',
-                techSetupTime: editingEvent?.techSetupTime || '',
-                techNotes: editingEvent?.techNotes || ''
+                title: event?.title || '',
+                date: event?.date || '',
+                startTime: event?.startTime || '',
+                endTime: event?.endTime || '',
+                venueName: event?.venueName || '',
+                venueAddress: event?.venueAddress || '',
+                fee: event?.fee || '',
+                currency: event?.currency || 'EUR',
+                status: event?.status || 'confirmed',
+                type: event?.type || 'club',
+                notes: event?.notes || '',
+                techEquipment: event?.techEquipment || '',
+                techSetup: event?.techSetup || '',
+                techPlaylist: event?.techPlaylist || '',
+                techSetupTime: event?.techSetupTime || '',
+                techNotes: event?.techNotes || ''
             });
 
             const handleSubmit = (e) => {
                 e.preventDefault();
-                console.log('Soumission formulaire:', formData);
-                if (formData.title && formData.date && formData.startTime && formData.venueName && formData.fee) {
-                    onSave(formData);
-                } else {
-                    alert('⚠️ Veuillez remplir tous les champs obligatoires (*)');
-                }
+                onSave(formData);
             };
 
             return (
-                <div className="modal-overlay fixed inset-0 flex items-center justify-center z-50">
-                    <div className="bg-slate-800 p-6 rounded-lg w-96 max-h-96 overflow-y-auto">
-                        <h3 className="text-xl font-bold mb-4">
-                            {editingEvent ? '✏️ Modifier l\'événement' : '➕ Nouvel événement'}
-                        </h3>
-                        
-                        <div className="flex gap-2 mb-4">
-                            <button 
-                                onClick={() => setActiveTab('basic')}
-                                className={`tab-button px-3 py-1 rounded text-sm ${activeTab === 'basic' ? 'active' : ''}`}
+                <div className="modal-overlay fixed inset-0 flex items-center justify-center z-50 p-4">
+                    <div className={`modal-content bg-slate-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden ${
+                        isMobile ? 'h-full' : ''
+                    }`}>
+                        {/* Header */}
+                        <div className="flex items-center justify-between p-4 border-b border-slate-700">
+                            <h3 className="text-xl font-bold">
+                                {event ? '✏️ Modifier l\'événement' : '➕ Nouvel événement'}
+                            </h3>
+                            <button
+                                onClick={onClose}
+                                className="text-slate-400 hover:text-white btn-touch"
                             >
-                                📋 Infos de base
-                            </button>
-                            <button 
-                                onClick={() => setActiveTab('tech')}
-                                className={`tab-button px-3 py-1 rounded text-sm ${activeTab === 'tech' ? 'active' : ''}`}
-                            >
-                                🎧 Notes DJ
+                                ✕
                             </button>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="space-y-3">
-                            {activeTab === 'basic' && (
-                                <>
-                                    <input 
-                                        type="text" placeholder="Nom de l'événement *" required
-                                        className="w-full p-2 bg-slate-700 rounded text-white"
-                                        value={formData.title} 
-                                        onChange={(e) => setFormData({...formData, title: e.target.value})}
-                                    />
-                                    <input 
-                                        type="date" required
-                                        className="w-full p-2 bg-slate-700 rounded text-white"
-                                        value={formData.date} 
-                                        onChange={(e) => setFormData({...formData, date: e.target.value})}
-                                    />
-                                    <div className="grid grid-cols-2 gap-2">
+                        {/* Tabs */}
+                        <div className="flex border-b border-slate-700">
+                            <button
+                                onClick={() => setActiveTab('basic')}
+                                className={`flex-1 px-4 py-3 font-medium btn-touch ${
+                                    activeTab === 'basic' ? 'bg-purple-600 text-white' : 'text-slate-300'
+                                }`}
+                            >
+                                📝 {isMobile ? 'Infos' : 'Infos de base'}
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('dj')}
+                                className={`flex-1 px-4 py-3 font-medium btn-touch ${
+                                    activeTab === 'dj' ? 'bg-purple-600 text-white' : 'text-slate-300'
+                                }`}
+                            >
+                                🎧 {isMobile ? 'DJ' : 'Notes DJ'}
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-4 overflow-y-auto flex-1">
+                            <form onSubmit={handleSubmit} className="space-y-4">
+                                {activeTab === 'basic' && (
+                                    <>
                                         <input 
-                                            type="time" placeholder="Début *" required
-                                            className="p-2 bg-slate-700 rounded text-white"
-                                            value={formData.startTime} 
-                                            onChange={(e) => setFormData({...formData, startTime: e.target.value})}
+                                            type="text" 
+                                            placeholder="Nom de l'événement *" 
+                                            required
+                                            className="form-input w-full p-3 bg-slate-700 rounded text-white btn-touch"
+                                            value={formData.title} 
+                                            onChange={(e) => setFormData({...formData, title: e.target.value})}
+                                        />
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <input 
+                                                type="date" 
+                                                required
+                                                className="form-input w-full p-3 bg-slate-700 rounded text-white btn-touch"
+                                                value={formData.date} 
+                                                onChange={(e) => setFormData({...formData, date: e.target.value})}
+                                            />
+                                            <select
+                                                className="form-input w-full p-3 bg-slate-700 rounded text-white btn-touch"
+                                                value={formData.status}
+                                                onChange={(e) => setFormData({...formData, status: e.target.value})}
+                                            >
+                                                <option value="confirmed">✅ Confirmé</option>
+                                                <option value="pending">⏳ En attente</option>
+                                                <option value="cancelled">❌ Annulé</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <input 
+                                                type="time" 
+                                                placeholder="Heure début *" 
+                                                required
+                                                className="form-input w-full p-3 bg-slate-700 rounded text-white btn-touch"
+                                                value={formData.startTime} 
+                                                onChange={(e) => setFormData({...formData, startTime: e.target.value})}
+                                            />
+                                            <input 
+                                                type="time" 
+                                                placeholder="Heure fin"
+                                                className="form-input w-full p-3 bg-slate-700 rounded text-white btn-touch"
+                                                value={formData.endTime} 
+                                                onChange={(e) => setFormData({...formData, endTime: e.target.value})}
+                                            />
+                                        </div>
+                                        
+                                        <input 
+                                            type="text" 
+                                            placeholder="Nom du lieu *" 
+                                            required
+                                            className="form-input w-full p-3 bg-slate-700 rounded text-white btn-touch"
+                                            value={formData.venueName} 
+                                            onChange={(e) => setFormData({...formData, venueName: e.target.value})}
+                                        />
+                                        
+                                        <input 
+                                            type="text" 
+                                            placeholder="Adresse du lieu"
+                                            className="form-input w-full p-3 bg-slate-700 rounded text-white btn-touch"
+                                            value={formData.venueAddress} 
+                                            onChange={(e) => setFormData({...formData, venueAddress: e.target.value})}
+                                        />
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <input 
+                                                type="number" 
+                                                placeholder="Cachet *" 
+                                                required
+                                                className="form-input w-full p-3 bg-slate-700 rounded text-white btn-touch"
+                                                value={formData.fee} 
+                                                onChange={(e) => setFormData({...formData, fee: e.target.value})}
+                                            />
+                                            <select
+                                                className="form-input w-full p-3 bg-slate-700 rounded text-white btn-touch"
+                                                value={formData.type}
+                                                onChange={(e) => setFormData({...formData, type: e.target.value})}
+                                            >
+                                                <option value="club">🎧 Club</option>
+                                                <option value="festival">🎪 Festival</option>
+                                                <option value="wedding">💒 Mariage</option>
+                                                <option value="private">🏠 Privé</option>
+                                                <option value="corporate">🏢 Corporate</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <textarea 
+                                            placeholder="Notes générales"
+                                            className="form-input w-full p-3 bg-slate-700 rounded text-white h-20 btn-touch"
+                                            value={formData.notes} 
+                                            onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                                        />
+                                    </>
+                                )}
+
+                                {activeTab === 'dj' && (
+                                    <>
+                                        <textarea 
+                                            placeholder="🎛️ Matériel nécessaire (ex: CDJ 2000, Table Pioneer...)"
+                                            className="form-input w-full p-3 bg-slate-700 rounded text-white h-20 btn-touch"
+                                            value={formData.techEquipment} 
+                                            onChange={(e) => setFormData({...formData, techEquipment: e.target.value})}
+                                        />
+                                        <textarea 
+                                            placeholder="🔧 Setup technique (ex: 2 enceintes + caisson...)"
+                                            className="form-input w-full p-3 bg-slate-700 rounded text-white h-20 btn-touch"
+                                            value={formData.techSetup} 
+                                            onChange={(e) => setFormData({...formData, techSetup: e.target.value})}
+                                        />
+                                        <textarea 
+                                            placeholder="🎵 Playlist/Genre musical (ex: House, Techno, Commercial...)"
+                                            className="form-input w-full p-3 bg-slate-700 rounded text-white h-20 btn-touch"
+                                            value={formData.techPlaylist} 
+                                            onChange={(e) => setFormData({...formData, techPlaylist: e.target.value})}
                                         />
                                         <input 
-                                            type="time" placeholder="Fin"
-                                            className="p-2 bg-slate-700 rounded text-white"
-                                            value={formData.endTime} 
-                                            onChange={(e) => setFormData({...formData, endTime: e.target.value})}
+                                            type="number" 
+                                            placeholder="⏱️ Temps de setup (minutes)"
+                                            className="form-input w-full p-3 bg-slate-700 rounded text-white btn-touch"
+                                            value={formData.techSetupTime} 
+                                            onChange={(e) => setFormData({...formData, techSetupTime: e.target.value})}
                                         />
-                                    </div>
-                                    <input 
-                                        type="text" placeholder="Nom du lieu *" required
-                                        className="w-full p-2 bg-slate-700 rounded text-white"
-                                        value={formData.venueName} 
-                                        onChange={(e) => setFormData({...formData, venueName: e.target.value})}
-                                    />
-                                    <input 
-                                        type="text" placeholder="Adresse du lieu"
-                                        className="w-full p-2 bg-slate-700 rounded text-white"
-                                        value={formData.venueAddress} 
-                                        onChange={(e) => setFormData({...formData, venueAddress: e.target.value})}
-                                    />
-                                    <input 
-                                        type="number" placeholder="Cachet *" required
-                                        className="w-full p-2 bg-slate-700 rounded text-white"
-                                        value={formData.fee} 
-                                        onChange={(e) => setFormData({...formData, fee: e.target.value})}
-                                    />
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <select 
-                                            className="p-2 bg-slate-700 rounded text-white"
-                                            value={formData.type} 
-                                            onChange={(e) => setFormData({...formData, type: e.target.value})}
-                                        >
-                                            <option value="club">🏢 Club</option>
-                                            <option value="festival">🎪 Festival</option>
-                                            <option value="wedding">💒 Mariage</option>
-                                            <option value="private">🏠 Privé</option>
-                                            <option value="corporate">🏢 Corporate</option>
-                                        </select>
-                                        <select 
-                                            className="p-2 bg-slate-700 rounded text-white"
-                                            value={formData.status} 
-                                            onChange={(e) => setFormData({...formData, status: e.target.value})}
-                                        >
-                                            <option value="confirmed">✅ Confirmé</option>
-                                            <option value="pending">⏳ En attente</option>
-                                            <option value="cancelled">❌ Annulé</option>
-                                        </select>
-                                    </div>
-                                    <textarea 
-                                        placeholder="Notes générales (optionnel)"
-                                        className="w-full p-2 bg-slate-700 rounded text-white h-16"
-                                        value={formData.notes} 
-                                        onChange={(e) => setFormData({...formData, notes: e.target.value})}
-                                    />
-                                </>
-                            )}
+                                        <textarea 
+                                            placeholder="📝 Notes techniques spéciales"
+                                            className="form-input w-full p-3 bg-slate-700 rounded text-white h-20 btn-touch"
+                                            value={formData.techNotes} 
+                                            onChange={(e) => setFormData({...formData, techNotes: e.target.value})}
+                                        />
+                                    </>
+                                )}
 
-                            {activeTab === 'tech' && (
-                                <>
-                                    <textarea 
-                                        placeholder="🎛️ Matériel nécessaire (CDJ, table de mixage, enceintes...)"
-                                        className="w-full p-2 bg-slate-700 rounded text-white h-16"
-                                        value={formData.techEquipment} 
-                                        onChange={(e) => setFormData({...formData, techEquipment: e.target.value})}
-                                    />
-                                    <textarea 
-                                        placeholder="🔧 Setup technique (configuration, branchements...)"
-                                        className="w-full p-2 bg-slate-700 rounded text-white h-16"
-                                        value={formData.techSetup} 
-                                        onChange={(e) => setFormData({...formData, techSetup: e.target.value})}
-                                    />
-                                    <textarea 
-                                        placeholder="🎵 Playlist/Genre musical (House, Techno, Top 40...)"
-                                        className="w-full p-2 bg-slate-700 rounded text-white h-16"
-                                        value={formData.techPlaylist} 
-                                        onChange={(e) => setFormData({...formData, techPlaylist: e.target.value})}
-                                    />
-                                    <input 
-                                        type="number" placeholder="⏱️ Temps de setup (en minutes)"
-                                        className="w-full p-2 bg-slate-700 rounded text-white"
-                                        value={formData.techSetupTime} 
-                                        onChange={(e) => setFormData({...formData, techSetupTime: e.target.value})}
-                                    />
-                                    <textarea 
-                                        placeholder="📝 Notes techniques spéciales"
-                                        className="w-full p-2 bg-slate-700 rounded text-white h-16"
-                                        value={formData.techNotes} 
-                                        onChange={(e) => setFormData({...formData, techNotes: e.target.value})}
-                                    />
-                                </>
-                            )}
-
-                            <div className="flex gap-2">
-                                <button type="button" onClick={onClose} className="flex-1 bg-slate-600 hover:bg-slate-500 py-2 rounded">
-                                    Annuler
-                                </button>
-                                <button type="submit" className="flex-1 bg-purple-600 hover:bg-purple-700 py-2 rounded">
-                                    {editingEvent ? '✏️ Modifier' : '➕ Créer'}
-                                </button>
-                            </div>
-                        </form>
+                                {/* Buttons */}
+                                <div className="flex gap-2 pt-4">
+                                    {event && onDelete && (
+                                        <button 
+                                            type="button" 
+                                            onClick={onDelete}
+                                            className="flex-1 bg-red-600 hover:bg-red-700 py-3 rounded text-white font-medium btn-touch"
+                                        >
+                                            🗑️ Supprimer
+                                        </button>
+                                    )}
+                                    <button 
+                                        type="button" 
+                                        onClick={onClose} 
+                                        className="flex-1 bg-slate-600 hover:bg-slate-500 py-3 rounded text-white font-medium btn-touch"
+                                    >
+                                        Annuler
+                                    </button>
+                                    <button 
+                                        type="submit" 
+                                        className="flex-1 bg-purple-600 hover:bg-purple-700 py-3 rounded text-white font-medium btn-touch"
+                                    >
+                                        {event ? '✏️ Modifier' : '➕ Créer'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 </div>
             );
