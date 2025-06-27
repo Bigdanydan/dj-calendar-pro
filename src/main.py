@@ -3,6 +3,7 @@ from flask import Flask, send_from_directory, jsonify, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+from sqlalchemy import text
 
 app = Flask(__name__, static_folder='static')
 app.config['SECRET_KEY'] = 'dj-calendar-secret-key-2025'
@@ -12,7 +13,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 CORS(app)
 db = SQLAlchemy(app)
 
-# Modèle Event avec le bon nom de table
+# Modèle Event
 class Event(db.Model):
     __tablename__ = 'events'
     
@@ -56,7 +57,7 @@ class Event(db.Model):
             'techNotes': self.tech_notes
         }
 
-# Routes
+# Route pour initialiser la base de données
 @app.route('/init-database')
 def init_database():
     try:
@@ -65,7 +66,6 @@ def init_database():
         db.create_all()
         
         # Vérifier que la table existe
-        from sqlalchemy import text
         result = db.session.execute(text("SELECT name FROM sqlite_master WHERE type='table';"))
         tables = [row[0] for row in result]
         
@@ -79,8 +79,38 @@ def init_database():
             'success': False, 
             'error': str(e)
         })
+
+# Routes principales
+@app.route('/api/events', methods=['GET', 'POST'])
+def handle_events():
+    if request.method == 'GET':
+        try:
+            search = request.args.get('search', '')
+            event_type = request.args.get('type', '')
+            status = request.args.get('status', '')
+            
+            query = Event.query
+            
+            if search:
+                search_term = f"%{search}%"
+                query = query.filter(
+                    (Event.title.like(search_term)) | 
+                    (Event.venue_name.like(search_term))
+                )
+            
+            if event_type:
+                query = query.filter(Event.event_type == event_type)
+            
+            if status:
+                query = query.filter(Event.status == status)
+            
+            events = query.order_by(Event.date.asc()).all()
+            return jsonify({'success': True, 'events': [event.to_dict() for event in events]})
+        except Exception as e:
+            print(f"Erreur GET events: {e}")
+            return jsonify({'success': False, 'error': str(e)})
     
-    elif request.method == 'POST':
+    if request.method == 'POST':
         try:
             data = request.get_json()
             print(f"Données reçues: {data}")
@@ -145,7 +175,7 @@ def handle_event(event_id):
             db.session.rollback()
             return jsonify({'success': False, 'error': str(e)})
     
-    elif request.method == 'DELETE':
+    if request.method == 'DELETE':
         try:
             event = Event.query.get_or_404(event_id)
             db.session.delete(event)
@@ -222,7 +252,6 @@ if __name__ == '__main__':
     print("🔧 Initialisation de la base de données...")
     with app.app_context():
         try:
-            # Force la recréation de la base de données
             db.drop_all()
             print("✅ Tables supprimées")
             
