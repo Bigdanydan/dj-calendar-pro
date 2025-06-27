@@ -12,8 +12,10 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 CORS(app)
 db = SQLAlchemy(app)
 
-# Modèle Event
+# Modèle Event avec le bon nom de table
 class Event(db.Model):
+    __tablename__ = 'events'
+    
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
     date = db.Column(db.String(10), nullable=False)
@@ -81,11 +83,13 @@ def handle_events():
             events = query.order_by(Event.date.asc()).all()
             return jsonify({'success': True, 'events': [event.to_dict() for event in events]})
         except Exception as e:
+            print(f"Erreur GET events: {e}")
             return jsonify({'success': False, 'error': str(e)})
     
     elif request.method == 'POST':
         try:
             data = request.get_json()
+            print(f"Données reçues: {data}")
             
             event = Event(
                 title=data.get('title', ''),
@@ -108,9 +112,11 @@ def handle_events():
             
             db.session.add(event)
             db.session.commit()
+            print(f"Événement créé avec succès: {event.id}")
             
             return jsonify({'success': True, 'event': event.to_dict()})
         except Exception as e:
+            print(f"Erreur POST events: {e}")
             db.session.rollback()
             return jsonify({'success': False, 'error': str(e)})
 
@@ -141,6 +147,7 @@ def handle_event(event_id):
             db.session.commit()
             return jsonify({'success': True, 'event': event.to_dict()})
         except Exception as e:
+            print(f"Erreur PUT event: {e}")
             db.session.rollback()
             return jsonify({'success': False, 'error': str(e)})
     
@@ -151,6 +158,7 @@ def handle_event(event_id):
             db.session.commit()
             return jsonify({'success': True, 'message': 'Event deleted'})
         except Exception as e:
+            print(f"Erreur DELETE event: {e}")
             db.session.rollback()
             return jsonify({'success': False, 'error': str(e)})
 
@@ -173,7 +181,16 @@ def get_stats():
             }
         })
     except Exception as e:
-        return jsonify({'success': True, 'stats': {'total_events': 0, 'confirmed_events': 0, 'pending_events': 0, 'total_revenue': 0}})
+        print(f"Erreur stats: {e}")
+        return jsonify({
+            'success': True, 
+            'stats': {
+                'total_events': 0, 
+                'confirmed_events': 0, 
+                'pending_events': 0, 
+                'total_revenue': 0
+            }
+        })
 
 @app.route('/api/events/analytics')
 def get_analytics():
@@ -186,7 +203,14 @@ def get_analytics():
             }
         })
     except Exception as e:
-        return jsonify({'success': True, 'analytics': {'monthly_revenue': [], 'revenue_by_type': []}})
+        print(f"Erreur analytics: {e}")
+        return jsonify({
+            'success': True, 
+            'analytics': {
+                'monthly_revenue': [], 
+                'revenue_by_type': []
+            }
+        })
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
@@ -198,28 +222,21 @@ def serve(path):
 
 @app.route('/health')
 def health():
-    return {'status': 'healthy'}
+    return {'status': 'healthy', 'message': 'DJ Calendar API is running'}
 
 if __name__ == '__main__':
     print("🔧 Initialisation de la base de données...")
     with app.app_context():
         try:
-            # Supprimer toutes les tables existantes
+            # Force la recréation de la base de données
             db.drop_all()
             print("✅ Tables supprimées")
             
-            # Créer toutes les tables
             db.create_all()
-            print("✅ Tables créées")
-            
-            # Vérifier que la table existe
-            result = db.engine.execute("SELECT name FROM sqlite_master WHERE type='table';")
-            tables = [row[0] for row in result]
-            print(f"📋 Tables disponibles: {tables}")
+            print("✅ Tables créées avec le nom 'events'")
             
         except Exception as e:
             print(f"❌ Erreur lors de la création des tables: {e}")
     
     print("🎵 DJ Calendar PRO+ démarré !")
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
-
