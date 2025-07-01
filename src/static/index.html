@@ -255,8 +255,10 @@
                 try {
                     const response = await fetch('/api/events/stats');
                     const data = await response.json();
+                    console.log('Stats reçues:', data); // Debug
                     if (data.success) {
                         setStats(data.stats);
+                        console.log('Stats définies:', data.stats); // Debug
                     }
                 } catch (error) {
                     console.error('Erreur chargement stats:', error);
