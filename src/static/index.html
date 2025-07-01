@@ -396,7 +396,8 @@
                 const firstDay = createLocalDate(year, month, 1);
                 const lastDay = createLocalDate(year, month + 1, 0);
                 const daysInMonth = lastDay.getDate();
-                const startingDayOfWeek = firstDay.getDay();
+                // Correction : JavaScript dimanche=0, mais on veut lundi=0
+                const startingDayOfWeek = (firstDay.getDay() + 6) % 7;
                 
                 const days = [];
                 
